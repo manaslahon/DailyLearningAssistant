@@ -77,7 +77,14 @@ class ProgressTrackerDB:
     def update_progress(self, subject, start_time, end_time, duration, date, chat_id):
         self.c.execute(
             """UPDATE study_sessions SET end_time=?, duration=? WHERE subject=? AND start_time=? AND date=? AND chat_id=?""",
-            (subject, start_time, end_time, duration, date, chat_id),
+            (
+                end_time,
+                duration,
+                subject,
+                start_time,
+                date,
+                chat_id,
+            ),
         )
 
     def delete_progress(self, subject):
