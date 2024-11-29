@@ -50,27 +50,31 @@ async def schedule_subject(update: Update, context: CallbackContext) -> None:
 
 
 def convert_time_to_24hr(time: str):
+    today = datetime.today()
+    tz = pytz.timezone("America/New_York")  # Sets preferred timezone
+
     try:
         time_obj = datetime.strptime(time, "%I%p")  # handles input such as 5pm
-        tz = pytz.timezone("America/New_York")  # Sets preferred timezone
+        time_obj = time_obj.replace(year=today.year, month=today.month, day=today.day)
         time_obj = tz.localize(time_obj)
         return time_obj
     except ValueError:
         try:
             time_obj = datetime.strptime(time, "%H:%M")  # handles input such as 17:00
-            tz = pytz.timezone("America/New_York")  # Sets preferred timezone
+            time_obj = time_obj.replace(
+                year=today.year, month=today.month, day=today.day
+            )
             time_obj = tz.localize(time_obj)
             return time_obj
         except ValueError:
             return None
 
 
-def schedule_study_reminder(
-    chat_id: int, subject: str, time_obj: datetime, context: CallbackContext
-):
+def schedule_study_reminder(chat_id, subject, time_obj, context: CallbackContext):
     job = scheduler.add_job(
         send_study_reminder, "date", run_date=time_obj, args=[chat_id, subject, context]
     )
+    print(job)
     return job
 
 
@@ -82,9 +86,12 @@ async def list_schedules(update: Update, context: CallbackContext) -> None:
     with SchedulesDB() as db:
         schedules = db.load_schedules()
         for subject, chat_id, run_time in schedules:
-            scheduled_time = datetime.fromisoformat(run_time)
-            job = schedule_study_reminder(chat_id, subject, scheduled_time, context)
-            scheduled_jobs[subject] = job
+            if (
+                subject not in scheduled_jobs
+            ):  # Only schedule if it's not already in scheduled_jobs
+                scheduled_time = datetime.fromisoformat(run_time)
+                job = schedule_study_reminder(chat_id, subject, scheduled_time, context)
+                scheduled_jobs[subject] = job
 
     if scheduled_jobs:
         message = "Here are your scheduled sessions:\n\n"
@@ -104,19 +111,34 @@ async def stop_schedule(update: Update, context: CallbackContext):
         return
     subject = context.args[0]
     try:
-        job = scheduled_jobs.pop(subject, None)
-        if job:
-            scheduler.remove_job(job.id)
-            with SchedulesDB() as db:
-                db.delete_schedule(subject)
-            await update.message.reply_text(
-                f"Study session for {subject} has been cancelled."
-            )
+        if scheduled_jobs[subject]:
+            job = scheduled_jobs.pop(subject, None)
+            print(job)
+            if job:
+                print(f"Removing job: {job.id}")
+                scheduler.remove_job(job.id)
+
+                with SchedulesDB() as db:
+                    db.delete_schedule(subject)
+
+                await update.message.reply_text(
+                    f"Study session for {subject} has been cancelled."
+                )
+            else:
+                await update.message.reply_text(
+                    f"No scheduled session found for {subject}."
+                )
         else:
             await update.message.reply_text(
-                f"No scheduled sessions found for {subject}."
+                f"No scheduled session found for {subject}."
             )
     except JobLookupError:
         await update.message.reply_text(
             f"Failed to cancel study session for the subject {subject}."
         )
+    except Exception as e:
+        await update.message.reply_text(f"An error occurred: {e}")
+        print(f"Error: {e}")
+
+
+print(scheduled_jobs)

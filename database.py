@@ -52,24 +52,32 @@ class ProgressTrackerDB:
         self.db_name = db_name
         self.conn = sqlite3.connect(self.db_name)
         self.c = self.conn.cursor()
+        self.init_db()
 
     def init_db(self):
         self.c.execute(
             """CREATE TABLE IF NOT EXISTS study_sessions(
-            subject TEXT, chat_id INTEGER, start_time TEXT, end_time TEXT
+            subject TEXT, chat_id INTEGER, start_time TEXT, end_time TEXT, duration REAL, date DATE
                        )"""
         )
 
-    def save_progress(self, subject, start_time, end_time, chat_id):
+    def save_progress(self, subject, chat_id, start_time, end_time, duration, date):
         self.c.execute(
-            """INSERT INTO study_sessions VALUES(?,?,?,?)""",
-            (subject, start_time, end_time, chat_id),
+            """INSERT INTO study_sessions VALUES(?,?,?,?,?,?)""",
+            (subject, chat_id, start_time, end_time, duration, date),
         )
 
-    def view_progress(self, subject):
+    def load_progress(self, subject):
         self.c.execute(
-            """SELECT start_time, end_time FROM study_sessions WHERE subject=?""",
+            """SELECT start_time, end_time, duration, date, chat_id FROM study_sessions WHERE subject=?""",
             (subject,),
+        )
+        return self.c.fetchall()
+
+    def update_progress(self, subject, start_time, end_time, duration, date, chat_id):
+        self.c.execute(
+            """UPDATE study_sessions SET end_time=?, duration=? WHERE subject=? AND start_time=? AND date=? AND chat_id=?""",
+            (subject, start_time, end_time, duration, date, chat_id),
         )
 
     def delete_progress(self, subject):
@@ -78,14 +86,14 @@ class ProgressTrackerDB:
             (subject,),
         )
 
-        def __enter__(self):
-            return self
+    def __enter__(self):
+        return self
 
-        def __exit__(self, exc_type, exc_value, traceback):
-            if exc_type is None:
-                self.conn.commit()
-            else:
-                print(
-                    f"There was an error while saving to the database: {exc_type}, {exc_value}"
-                )
-            self.conn.close()
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            self.conn.commit()
+        else:
+            print(
+                f"There was an error while saving to the database: {exc_type}, {exc_value}"
+            )
+        self.conn.close()
