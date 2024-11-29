@@ -1,11 +1,12 @@
 from datetime import datetime
-from telegram import CallbackGame, Update
+from telegram import Update
 from telegram.ext import CallbackContext
 from database import ProgressTrackerDB
 
 progress = {}
 
 
+# Command to start a study session
 async def start_study(update: Update, context: CallbackContext):
     try:
         subject = context.args[0]
@@ -21,12 +22,14 @@ async def start_study(update: Update, context: CallbackContext):
         await update.message.reply_text("Usage: /start <subject>. Example: /start math")
 
 
+# Command to finish a study session
 async def finish_study(update: Update, context: CallbackContext):
     try:
         subject = context.args[0]
         end_time = datetime.now()
         chat_id = update.message.chat.id
 
+        # Load progress from the database
         with ProgressTrackerDB() as db:
             results = db.load_progress(subject)
             progress[subject] = [
@@ -40,11 +43,14 @@ async def finish_study(update: Update, context: CallbackContext):
                 for row in results
                 if row[4] == chat_id
             ]
+
+        # Find ongoing sessions (where end_time is None) and update them
         for session in progress[subject]:
             if session["end_time"] is None:
                 start_time_dt = datetime.fromisoformat(session["start_time"])
                 duration = (end_time - start_time_dt).total_seconds() / 3600
 
+                # Update the session in the database with the end time and duration
                 with ProgressTrackerDB() as db:
                     db.update_progress(
                         subject,
@@ -66,11 +72,13 @@ async def finish_study(update: Update, context: CallbackContext):
         await update.message.reply_text(f"Failed to end the session: {e}")
 
 
+# Command to show the progress of study sessions
 async def show_progress(update: Update, context: CallbackContext):
     try:
         subject = context.args[0]
         chat_id = update.message.chat.id
 
+        # Load progress from the database
         with ProgressTrackerDB() as db:
             results = db.load_progress(subject)
             progress[subject] = [
@@ -85,22 +93,36 @@ async def show_progress(update: Update, context: CallbackContext):
                 if row[4] == chat_id
             ]
 
+        # If no progress data found for the subject
         if not progress[subject]:
             await update.message.reply_text(f"No progress data found for {subject}.")
             return
 
+        # Prepare the message showing the progress
         message = f"Progress for {subject}:\n"
         for session in progress[subject]:
             start_time_dt = datetime.fromisoformat(session["start_time"])
-            end_time = session["end_time"]
+
+            # Handle the case where end_time is None (session is ongoing)
+            if session["end_time"]:
+                end_time_dt = datetime.fromisoformat(session["end_time"]).strftime(
+                    "%H:%M:%S"
+                )
+            else:
+                end_time_dt = "Ongoing"
+
+            # Format the duration, showing "In progress" if duration is None
             duration = session["duration"]
             formatted_duration = f"{duration:.2f} hours" if duration else "In progress"
+
+            # Build the message for each session
             message += (
                 f"Started: {start_time_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                f"Ended: {end_time if end_time else 'Ongoing'}\n"
+                f"Ended: {end_time_dt}\n"
                 f"Duration: {formatted_duration}\n\n"
             )
 
+        # Send the progress message to the user
         await update.message.reply_text(message)
 
     except IndexError:
