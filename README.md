@@ -65,18 +65,5 @@ Usage
 
 Example Commands
 
-- /schedule SubjectA 09:00-10:00: Schedules a study session for "SubjectA" from 9:00 AM to 10:00 AM.
-- /progress: Shows a summary of your study times by subject.
-
-Database Structure
-
-The bot uses a simple database schema to store study sessions. The key table is:
-
-study_sessions: Tracks all study sessions with the following columns:
-id: Unique session ID.
-subject: The subject being studied.
-chat_id: Telegram user ID.
-start_time: Start time of the session.
-end_time: End time of the session.
-duration: Duration of the study session.
-date: Date of the session.
+- `/schedule SubjectA 09:00-10:00`: Schedules a study session for "SubjectA" from 9:00 AM to 10:00 AM.
+- `/progress`: Shows a summary of your study times by subject.
